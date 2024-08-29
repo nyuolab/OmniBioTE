@@ -11,6 +11,17 @@
 ## Introduction
 OmniBioTE is a large-scale multimodal biosequence transformer model that is designed to capture the complex relationships in biological sequences such as DNA, RNA, and proteins. The model is based on the BERT architecture and is adapted to handle the unique characteristics of biosequences.
 
+## Requirements
+```
+mup==1.0.0
+numpy==1.24.4
+scikit-learn==1.3.2
+scipy==1.10.1
+sentencepiece==0.2.0
+torch==2.2.1
+tqdm==4.66.2
+```
+
 ## Using a Pretrained Model
 After loading a pretrained model, the `encode` method can be used to generate embeddings for a given sequence. The `encode` method takes in a a `torch.LongTensor` of shape `(b, t)` where `b` is the batch dimension and `t` is the token dimension. It returns a `torch.FloatTensor` of shape `(b, n_embd)` where `n_embd` is the embedding dimension of the model. Additionally, a `method` parameter can be passed to the `encode` method to specify the method used to generate the embeddings. The available methods are:
 - `mean`: Returns the mean of the embeddings across the token dimension
