@@ -1,119 +1,76 @@
+from torch.utils.data import Dataset
+import os
+import random
 import numpy as np
 import torch
+import gzip
+from threading import Thread
+from queue import Queue
 
+UNKNOWN_TOKEN = 0
 EOS_TOKEN = 3
 MASK_TOKEN = 2
 PAD_TOKEN = 1
 
-def data_loader_parallel(batch_queue, batch_generator, device):
+def line_reader(filenames, tokenizer, banned_tokens, offset):
     '''
-    A function to load data in a separate thread to speed up training.
+    Generator function that yields a single sequence at a time from the entire list of files.
+    It preloads one file ahead to improve efficiency.
+    '''
+    file_queue = Queue(maxsize=4)  # Queue to hold preloaded files
+    max_chunk_size = 4096
 
-    Args:
-        batch_queue: a queue to store the batches in
-        batch_generator: a generator that yields batches
-        device: the device to move the batches to
-    '''
-    while True:
-        try:
-            data = next(batch_generator)
-            data = data.to(device)
-            batch_queue.put(data)
-        except StopIteration:
-            break
+    def file_loader():
+        while True:
+            for filename in filenames:
+                try:
+                    with gzip.open(filename, 'r') as f:
+                        data = f.read().decode('utf-8')
+                    file_queue.put((filename, data))
+                except Exception as e:
+                    print(f"Error loading {filename}: {e}")
+                    file_queue.put((filename, ""))  # Put empty data to avoid blocking
 
-def line_reader(filenames, banned_tokens):
-    '''
-    Generator function that yields a single sequence at a time from entire list of files
-    '''
-    while True:
-        # shuffle filenames
-        np.random.shuffle(filenames)
-
-        chunk_size = 10 # number of files to load at a time. Each file takes ~100  MB of memory, so this should be tuned to the available memory
-        # chunk files into groups of chunk_size
-        chunked_filenames = np.split(filenames, np.arange(chunk_size, len(filenames), chunk_size))
-
-        for name in chunked_filenames:
-            block = []
-            for filename in name:
-                block.append(np.load(filename))
-            
-            block = np.concatenate(block)
-            eos_indices = np.where(block == EOS_TOKEN)[0]
-            sub_blocks = np.split(block, eos_indices + 1)
-            
-            # Create an array of indices and shuffle it
-            sub_block_order = np.arange(len(sub_blocks))
-            np.random.shuffle(sub_block_order)
-            
-            for idx in sub_block_order:
-                sub_block = sub_blocks[idx]
-                if len(sub_block) > 0:
-                    # Use NumPy's vectorized operations for filtering
-                    if len(banned_tokens) == 1:
-                        mask = sub_block != banned_tokens[0]
-                    else:
-                        mask = ~np.isin(sub_block, banned_tokens)
-                    sub_block = sub_block[mask]
-                    yield np.int32(sub_block)
-"""
-def get_sequence(reader, ctx_len, USE_PADDING=False):
-    '''
-    This function pulls lines from the reader until the sequence is ctx_len long or shorter, then pads the sequence (if padding is enabled), finally yielding it
-    '''
-    sequence = [] # the current sequence
-    seq_len = 0 # the length of the current sequence
-    leftover = None
+    # Start the loader thread
+    loader_thread = Thread(target=file_loader)
+    loader_thread.start()
 
     while True:
-        if leftover is not None: # if there was a leftover line from the previous iteration, use it
-            line = leftover
-            leftover = None
-        else: # otherwise, get the next line from the reader
-            line = next(reader)
+        item = file_queue.get()
         
-        # if the line is longer than ctx_len, truncate it and save the leftover
-        if USE_PADDING:
-            if len(line) > ctx_len:
-                leftover = line[ctx_len:]
-                line = line[:ctx_len]
-        else:
-            if len(line) + seq_len > ctx_len:
-                leftover = line[ctx_len - seq_len:]
-                line = line[:ctx_len - seq_len]
-        
-        # if adding this line would make the sequence too long, pad it and yield it
-        if seq_len + len(line) > ctx_len:
-            if USE_PADDING:
-                # if adding this line would make the sequence too long, pad it and yield it
-                sequence.extend([PAD_TOKEN] * (ctx_len - seq_len))
-                yield sequence
+        if item is None:
+            continue  # Skip empty blocks
 
-                # reset the sequence and sequence length
-                sequence = []
-                seq_len = 0
+        filename, block = item
 
-                continue
-            else:
-                # raise error because this should never happen with truncation
-                raise ValueError("Unreachable code reached")
+        sub_blocks = block.split("<EOS>")
 
-        
-        if seq_len == ctx_len:
-            yield sequence
+        # Shuffle sub_blocks
+        sub_block_order = np.arange(len(sub_blocks))
+        np.random.shuffle(sub_block_order)
 
-            # reset the sequence and sequence length
-            sequence = []
-            seq_len = 0
+        for idx in sub_block_order:
+            sub_block = sub_blocks[idx]
+            if len(sub_block) > 0:
+                sub_block = sub_block.strip() + "<EOS>"
 
-            continue
-        
-        # otherwise, add the line to the sequence
-        # in the case that the sequence was yielded, this line will be the first line of the next sequence
-        sequence.extend(line)
-        seq_len += len(line)
-"""
+                # pick a random chunk of max_chunk_size tokens
+                if len(sub_block) > max_chunk_size:
+                    start = np.random.randint(0, len(sub_block) - max_chunk_size)
+                    end = start + max_chunk_size
+
+                    tokenized = tokenizer.Encode(sub_block[start:end])
+                else:
+                    tokenized = tokenizer.Encode(sub_block)
+
+                tokenized = [t + offset for t in tokenized if t not in banned_tokens]
+
+                if len(tokenized) > 0:
+                    yield np.int32(tokenized)
+
+    # Wait for the loader thread to finish
+    loader_thread.join()
+
 
 def get_sequence(reader, ctx_len, USE_PADDING=False):
     '''
@@ -124,7 +81,7 @@ def get_sequence(reader, ctx_len, USE_PADDING=False):
 
     while True:
         line = next(reader)
-        
+
         seq_len = len(sequence)
 
         # if the sequence is full, yield it
@@ -147,7 +104,7 @@ def get_sequence(reader, ctx_len, USE_PADDING=False):
             else:
                 # if padding is not enabled, truncate the line and yield the sequence
                 sequence.extend(line[:ctx_len - seq_len])
-            
+
             yield sequence
             sequence = []
             seq_len = 0
@@ -162,73 +119,39 @@ def get_sequence(reader, ctx_len, USE_PADDING=False):
         if seq_len > ctx_len:
             raise ValueError("Unreachable code reached")
 
-def get_batch(generators, train_ints, return_pt=False, device="cpu"):
-    '''
-    This function pulls train_ints[0] lines from generators[0], train_ints[1] lines from generators[1], etc.
-    '''
-    while True:
-        batch = []
-        for generator, train_int in zip(generators, train_ints):
-            for _ in range(train_int):
-                batch.append(next(generator))
+class OmniDataset(Dataset):
+    def __init__(
+        self,
+        directories,
+        ctx_len,
+        tokenizers,
+    ):
+        """
+        Custom Dataset for loading OmniBioTE data
+
+        Parameters:
+        - directories: list of dictionaries containign three keys: "path", "type", "fraction"
+        - batch_size: batch size for DataLoader
+        """
+        self.directories = directories
+        self.ctx_len = ctx_len
+
+        for i in range(0, len(directories)):
+            directories[i]["files"] = [os.path.join(directories[i]["path"], f) for f in os.listdir(directories[i]["path"]) if os.path.isfile(os.path.join(directories[i]["path"], f))]
         
-        # shuffle the batch
-        np.random.shuffle(batch)
-
-        if return_pt:
-            yield torch.tensor(batch, dtype=torch.long, device=device)
-        else:
-            yield np.asarray(batch)
-
-def get_sequence_multireader(readers, probs, ctx_len):
-    '''
-    This function pulls lines from the reader until the sequence is ctx_len long or shorter, then pads the sequence, finally yielding it
-    '''
-    sequence = [] # the current sequence
-    seq_len = 0 # the length of the current sequence
-    leftover = None
-
-    while True:
-        if leftover is not None: # if there was a leftover line from the previous iteration, use it
-            line = leftover
-            leftover = None
-        else: # otherwise, get the next line from the reader
-            reader = np.random.choice(readers, p=probs)
-            line = next(reader)
+        for directory in directories:
+            random.shuffle(directory["files"])
         
-        # if the line is longer than ctx_len, truncate it and save the leftover
-        if len(line) > ctx_len:
-            line = line[:ctx_len]
-            leftover = line[ctx_len:]
-        
-        # if adding this line would make the sequence too long, pad it and yield it
-        if seq_len + len(line) > ctx_len:
-            # if adding this line would make the sequence too long, pad it and yield it
-            sequence.extend([PAD_TOKEN] * (ctx_len - seq_len))
-            yield sequence
+        self.distribution = [directory["fraction"] for directory in directories]
+        assert sum(self.distribution) == 1, "Fractions must sum to 1"
 
-            # reset the sequence and sequence length
-            sequence = []
-            seq_len = 0
-        
-        # otherwise, add the line to the sequence
-        # in the case that the sequence was yielded, this line will be the first line of the next sequence
-        sequence.extend(line)
-        seq_len += len(line)
+        readers = [line_reader(directory["files"], tokenizers[directory["type"]], directory["banned_tokens"], directory["offset"]) for directory in directories]
+        self.sequence_generators = [get_sequence(reader, self.ctx_len, USE_PADDING=False) for reader in readers]
 
-def get_batch_multireader(generator, batch_size, return_pt=False, device="cpu"):
-    '''
-    This function pulls train_ints[0] lines from generators[0], train_ints[1] lines from generators[1], etc.
-    '''
-    while True:
-        batch = []
-        for _ in range(batch_size):
-            batch.append(next(generator))
-        
-        # shuffle the batch
-        np.random.shuffle(batch)
+    def __len__(self):
+        return int(1e12) # return a large number to allow for infinite iterations
 
-        if return_pt:
-            yield torch.tensor(batch, dtype=torch.long, device=device)
-        else:
-            yield np.asarray(batch)
+    def __getitem__(self, _):
+        sequence_gen = random.choices(self.sequence_generators, self.distribution)[0]
+            
+        return torch.tensor(next(sequence_gen), dtype=torch.long)

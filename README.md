@@ -1,26 +1,16 @@
-# OmniBioTE: A Large-Scale Multimodal Biosequence Transformer Model
+# OmniBioTA: A Large-Scale Multimodal Biosequence Transformer Model
 
 ## Table of Contents
 - [Introduction](#introduction)
 - [Using a Pretrained Model](#using-a-pretrained-model)
 - [Downloading and Preprocessing Data](#downloading-and-preprocessing-data)
+- [Tokenizer Training](#tokenizer-training)
 - [Model Training](#model-training)
 - [Evaluation](#evaluation)
 - [Conclusion](#conclusion)
 
 ## Introduction
-OmniBioTE is a large-scale multimodal biosequence transformer model that is designed to capture the complex relationships in biological sequences such as DNA, RNA, and proteins. The model is based on the BERT architecture and is adapted to handle the unique characteristics of biosequences.
-
-## Requirements
-```
-mup==1.0.0
-numpy==1.24.4
-scikit-learn==1.3.2
-scipy==1.10.1
-sentencepiece==0.2.0
-torch==2.2.1
-tqdm==4.66.2
-```
+OmniBioTA is a large-scale multimodal biosequence transformer model that is designed to capture the complex relationships in biological sequences such as DNA, RNA, and proteins. The model is based on the BERT architecture and is adapted to handle the unique characteristics of biosequences.
 
 ## Using a Pretrained Model
 After loading a pretrained model, the `encode` method can be used to generate embeddings for a given sequence. The `encode` method takes in a a `torch.LongTensor` of shape `(b, t)` where `b` is the batch dimension and `t` is the token dimension. It returns a `torch.FloatTensor` of shape `(b, n_embd)` where `n_embd` is the embedding dimension of the model. Additionally, a `method` parameter can be passed to the `encode` method to specify the method used to generate the embeddings. The available methods are:
@@ -35,7 +25,7 @@ After loading a pretrained model, the `encode` method can be used to generate em
 import torch
 from model import OmniBioTA, OmniBioTAConfig
 
-model = torch.load("omnibiote-small.pt", map_location="cuda").to(device) # Load the pretrained model
+model = torch.load("omnbiote-small.pt", map_location="cuda").to(device) # Load the pretrained model
 model.eval() # Set the model to evaluation mode
 
 sequence = torch.randint(0, 100, (1, 1024)).to(device) # Generate a random sequence of length 1024
@@ -43,24 +33,37 @@ embeddings = model.encode(sequence, method="mean") # Generate embeddings for the
 ```
 
 ## Downloading and Preprocessing Data
-Before training the model, it is necessary to download and preprocess the biological sequence data. The provided scripts `download_genbank.py`, `preprocess_genbank.py`, `preprocess_uniprot.py` facilitate the downloading of GenBank sequences and preprocessing of UniProt sequences, respectively.
+Before training the model, it is necessary to download and preprocess the biological sequence data. The provided scripts `download_and_process_OAS.py`, `download_genbank.py`, `preprocess_genbank.py`, `preprocess_uniprot.py` facilitate the downloading and processing of antibody sequences, downloading of GenBank sequences, and preprocessing of UniProt sequences, respectively.
 
 ### Example Usage
 ```bash
+python preprocessing/download_and_process_OAS.py
 python preprocessing/download_genbank.py
 python preprocessing/preprocess_genbank.py
 ```
 
 ### Data Sources
-Nucleic acid data is sourced from [GenBank](https://ftp.ncbi.nlm.nih.gov/genbank/), while peptide data is sourced from [UniProt100](https://www.uniprot.org/help/uniref).
+Nucleic acid data is sourced from [GenBank](https://ftp.ncbi.nlm.nih.gov/genbank/), while peptide data is sourced from [UniProt100](https://www.uniprot.org/help/uniref) and the [Observed Antibody Space](https://opig.stats.ox.ac.uk/webapps/oas/oas_unpaired/).
 
-
-## Model Training
-The model training is carried out using the `train_encoder.py` script. The training procedure includes distributed training across multiple GPUs, gradient accumulation (to increase throughput by reducing parameter sync ops), and a number of optimization/stability techniques like µP, weight decay, batch ramp, learning rate decay, and more.
+## Tokenizer Training
+A [SentencePiece](https://github.com/google/sentencepiece) tokenizer is trained to handle the biosequences effectively. The `tokenize_genbank.py` and `tokenize_uniref_and_OAS.py` scripts tokenize the GenBank, UniProt, and OAS sequences. The tokenizer can then be trained via the steps in the `train_tokenizer.ipynb` notebook
 
 ### Example Usage
 ```bash
+python tokenization/tokenize_genbank.py
+python tokenization/tokenize_uniref.py
+```
+
+## Model Training
+The model training is carried out using the `train_encoder.py` script. The training procedure includes distributed training across multiple GPUs, gradient accumulation, and a number of optimization/stability techniques like µP, weight decay, batch ramp, learning rate decay, and more.
+
+### Example Usage
+```bash
+# Non-autoregressive training
 torchrun --nnodes=1 --nproc_per_node=4 train_encoder.py --n_head 8 --n_embd 1024 --n_layer 8 --mini_batch_size 2 --lr 0.05 --save_name omnbiote-small
+
+# Autoregressive training
+torchrun --nnodes=1 --nproc_per_node=4 train_autoregressive.py --n_head 8 --n_embd 1024 --n_layer 8 --mini_batch_size 2 --lr 0.05 --save_name omnbiote-small
 ```
 
 The full list of flags and options for the training scripts is as follows:
@@ -87,8 +90,13 @@ The full list of flags and options for the training scripts is as follows:
 --force_lr: Whether to override muP's learning rate scaling. Use this if you want to use a learning rate that is not scaled by muP (not recommended).
 ```
 
+
+## Evaluation
+
+(Readme in progress)
 ---
 
 ## Additional Notes
 - The provided scripts are part of a larger workflow and may need to be adapted to fit into different computational environments or data pipelines.
 - For more detailed instructions and information, please refer to the documentation and comments within each script.
+- ProNAB datasets are excluded from this repository as they require a license agreement to use. Datasets available upon request, given approval of the licensing agreement by the dataset owner.
