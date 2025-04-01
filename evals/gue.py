@@ -1,5 +1,4 @@
 import os
-import sys
 import copy
 import fire
 import numpy as np
@@ -7,11 +6,8 @@ import torch
 import sentencepiece as spm
 from tqdm import tqdm
 from sklearn.metrics import matthews_corrcoef, f1_score
-
-# Insert training path
-sys.path.insert(0, "../training")
 from model import OmniBioTA
-from loader import EOS_TOKEN, PAD_TOKEN, MASK_TOKEN
+from loader import EOS_TOKEN, PAD_TOKEN
 
 device = "cuda"
 
@@ -92,20 +88,16 @@ def finetune_on_task(
     task: str,
     model: torch.nn.Module,
     sp: spm.SentencePieceProcessor,
-    banned_tokens: list,
     device: str,
     dtype=torch.bfloat16,
-    num_epochs: int = 4,
     batch_size: int = 4,
     num_accumulation_steps: int = 8,
     lr: float = 1e-4,
     embed_lr: float = 1e-2,
     head_lr: float = 1e-2,
     test_freq: int = 100,
-    tokenizer_offset: int = 0,
     head_multiplier: float = None,
     embedding_type: str = "first",
-    iter_cap: int = None,
     wd=True
 ):
     """
@@ -166,10 +158,6 @@ def finetune_on_task(
     ]
 
     num_steps = 30000
-    #num_steps = int(num_epochs * len(X_train) / (batch_size * num_accumulation_steps))
-
-    #if iter_cap is not None:
-    #    num_steps = min(num_steps, iter_cap)
 
     if wd:
         optimizer = torch.optim.AdamW(param_groups)
@@ -477,7 +465,6 @@ def main(
     tokenizer_offset: int = 0,
     num_accum_steps: int = 1,
     batch_size: int = 32,
-    epochs_multiplier: float = 1,
     lr: float = 0.00015625,
     embed_lr: float = 0.00015625,
     head_lr: float = 1e-2,
@@ -489,31 +476,11 @@ def main(
     wd: bool = True,
     start_at = None,
 ):
-    """
-    Main entry point. Loads tokenizer and model, then iterates over GUE tasks to finetune/evaluate.
-
-    Args:
-        sp_dir (str): Path to the SentencePiece tokenizer model.
-        model_dir (str): Path to the pretrained model checkpoint.
-        tokenizer_suffix (str): Tokenizer key to select the correct banned token from genbank_banned_tokens.
-        tokenizer_offset (int): ID offset applied to tokens (default=0).
-        num_accum_steps (int): Gradient accumulation steps (default=4).
-        batch_size (int): Batch size (default=32).
-        lr (float): Finetuning learning rate (default=1e-3).
-        embed_lr (float): Embedding layer learning rate (default=1e-4).
-        output_suffix (str): Suffix appended to output CSV filename.
-    """
     print(f"Loading tokenizer from {sp_dir}...")
     print(f"Loading model from {model_dir}...")
 
     genbank_banned_tokens = {
-        "1k": 1013,
-        "2k": 2037,
-        "4k": 4085,
-        "8k": 8181,
-        "16k": 16373,
-        "32k": 32757,
-        "65k": 65525
+        "2k": 2037
     }
     assert (
         tokenizer_suffix in genbank_banned_tokens
@@ -521,7 +488,6 @@ def main(
 
     banned_token = genbank_banned_tokens[tokenizer_suffix]
 
-    print(f"Using banned tokens 1, 2, {banned_token}")
     print(f"Using tokenizer offset {tokenizer_offset}")
     print(f"Finetuning with lr={lr}, embed_lr={embed_lr}, head_lr={head_lr}, batch_size={batch_size}, num_accum_steps={num_accum_steps}")
     print(f"Saving results with suffix: {output_suffix}")
@@ -574,29 +540,8 @@ def main(
 
         start_at = None
 
-        if "EMP" in task:
-            epochs = 32
-        elif "mouse" in task:
-            epochs = 100
-        elif "covid" in task:
-            epochs = 32
-        elif "tata" in task:
-            epochs = 32
-        elif "notata" in task:
-            epochs = 32
-        elif "all" in task:
-            epochs = 32
-        elif "splice" in task:
-            epochs = 32
-        elif "tf" in task:
-            epochs = 32
-        else:
-            raise ValueError(f"Unknown task type in path: {task}")
-        
-        epochs = int(epochs * epochs_multiplier)
-
         print("---------------------------------------------------------------")
-        print(f"Evaluating task '{task}', training for {epochs} epochs...")
+        print(f"Evaluating task '{task}'")
         mcc, f1_ = finetune_on_task(
             task,
             model,
@@ -606,7 +551,6 @@ def main(
             dtype=dtype,
             batch_size=batch_size,
             num_accumulation_steps=num_accum_steps,
-            num_epochs=epochs,
             lr=lr,
             embed_lr=embed_lr,
             head_lr=head_lr,

@@ -17,8 +17,7 @@ from model import OmniBioTA
 from loader import EOS_TOKEN, PAD_TOKEN
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-BASE_DIR = "/gpfs/home/chens59/OmniBioTA/datasets/TAPE/data"
-#BASE_DIR = "TAPE"
+BASE_DIR = "../datasets/TAPE/data"
 
 class Tokenizer:
     def __init__(self, tokenizer_type):
@@ -827,10 +826,6 @@ def main_cli(
 
 
 if __name__ == "__main__":
-    # If you want to keep fire usage:
-    # fire.Fire(main_cli)
-
-    # Or use argparse for a more standard interface:
     parser = argparse.ArgumentParser(description="Finetune OmniBioTA model on TAPE tasks.")
     parser.add_argument("--model_dir", type=str, required=True, help="Path to the pretrained OmniBioTA model.")
     parser.add_argument("--pretraining_epochs", type=int, default=4, help="(Optional) pretraining epochs.")

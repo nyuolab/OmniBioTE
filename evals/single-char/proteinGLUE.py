@@ -11,9 +11,6 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score
 from scipy.stats import pearsonr
 import pandas as pd
-
-# If these tokens come from a custom local loader,
-# ensure your local path insert is valid (if needed).
 sys.path.insert(0, '../training')
 from loader import EOS_TOKEN, PAD_TOKEN, MASK_TOKEN
 from model import OmniBioTA

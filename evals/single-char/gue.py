@@ -8,8 +8,6 @@ import sentencepiece as spm
 from tqdm import tqdm
 import re
 from sklearn.metrics import matthews_corrcoef, f1_score
-
-# Insert training path
 sys.path.insert(0, "../training")
 from model import OmniBioTA
 from loader import EOS_TOKEN, PAD_TOKEN
@@ -116,7 +114,6 @@ def finetune_on_task(
     sp: spm.SentencePieceProcessor,
     device: str,
     dtype=torch.bfloat16,
-    num_epochs: int = 4,
     batch_size: int = 4,
     num_accumulation_steps: int = 8,
     lr: float = 1e-4,
@@ -475,28 +472,9 @@ def main(
                 started = True
             else:
                 continue
-            
-        if "EMP" in task:
-            epochs = 32
-        elif "mouse" in task:
-            epochs = 100
-        elif "covid" in task:
-            epochs = 32
-        elif "tata" in task:
-            epochs = 32
-        elif "notata" in task:
-            epochs = 32
-        elif "all" in task:
-            epochs = 32
-        elif "splice" in task:
-            epochs = 32
-        elif "tf" in task:
-            epochs = 32
-        else:
-            raise ValueError(f"Unknown task type in path: {task}")
 
         print("---------------------------------------------------------------")
-        print(f"Evaluating task '{task}', training for {epochs} epochs...")
+        print(f"Evaluating task '{task}")
         mcc, f1_ = finetune_on_task(
             task,
             model,
@@ -505,7 +483,6 @@ def main(
             dtype=dtype,
             batch_size=batch_size,
             num_accumulation_steps=num_accum_steps,
-            num_epochs=epochs,
             lr=lr,
             embed_lr=embed_lr,
             head_lr=head_lr,

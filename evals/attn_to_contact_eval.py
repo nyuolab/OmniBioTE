@@ -1,15 +1,10 @@
-#!/usr/bin/env python
 import argparse
 import json
 import random
-import sys
-from pathlib import Path
-
 import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn.functional as F
-from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import f1_score
 from tqdm import tqdm
 from model_transparent import OmniBioTA 

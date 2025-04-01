@@ -9,9 +9,6 @@ import torch
 import sentencepiece as spm
 from tqdm import tqdm
 from scipy.stats import pearsonr
-
-# For loading model definitions, etc.
-sys.path.insert(0, "../training")
 from model import OmniBioTA
 
 # Set device and dtype
@@ -382,7 +379,6 @@ def main():
             pbar.set_description(f"Step: {step}, Loss: {total_loss:.4f}")
 
         pbar.close()
-        #torch.save(model, f"pronab_all_ft_{output_suffix}.pt")
 
         # ---------------------- Evaluate on cross-validation set ----------------------
         print("Evaluating on cross-validation set...")

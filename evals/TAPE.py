@@ -10,18 +10,16 @@ import argparse
 import numpy as np
 import torch
 import sentencepiece as spm
-import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 from scipy.stats import spearmanr
-import fire
 
 sys.path.insert(0, "../training")
-from loader import EOS_TOKEN, PAD_TOKEN, MASK_TOKEN
+from loader import EOS_TOKEN
 from model import OmniBioTA
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-BASE_DIR = "/gpfs/home/chens59/OmniBioTA/datasets/TAPE/data"
+BASE_DIR = "../datasets/TAPE/data"
 
 
 # ---------------------  TOKENIZER WRAPPER  ---------------------
@@ -353,84 +351,6 @@ def get_training_sets(task_name, sp, format_func, prefix):
             Y_test = [(arr - mean_val) / std_val for arr in Y_test]
 
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
-
-
-# ---------------------  ATTENTION MASKING  ---------------------
-
-@torch.jit.script
-def block_attn(attn_mask: torch.Tensor, start: int, end: int, batch_idx: int) -> int:
-    """
-    Zero out a block of attn_mask in [start, end) for batch_idx along both dims.
-    This is used in create_attention_mask for chunking attention by <EOS>.
-    """
-    attn_mask[batch_idx, start:end, start:end] = 0
-    return 0
-
-@torch.jit.script
-def create_attention_mask(
-    attn_mask: torch.Tensor, 
-    input_ids: torch.Tensor, 
-    EOS_TOKEN: int = 3, 
-    padding: bool = False
-) -> torch.Tensor:
-    """
-    Creates a block-diagonal attention mask separated by <EOS> tokens.
-    If padding=True, we do not modify `input_ids`, else we add an <EOS> at the end.
-
-    Args:
-      attn_mask (torch.Tensor): (B, seq_len, seq_len) pre-allocated with -1e9.
-      input_ids (torch.Tensor): (B, seq_len)
-      EOS_TOKEN (int): EOS token ID
-      padding (bool): If True, use existing shape; if False, extend with EOS.
-
-    Returns:
-      The updated attn_mask with zeroed blocks for each segment in the batch.
-    """
-    if not padding:
-        # Add an EOS at the end of each sequence
-        temp = torch.ones(
-            input_ids.size(0),
-            input_ids.size(1) + 1,
-            device=input_ids.device,
-            dtype=input_ids.dtype
-        )
-        temp[:, :-1] = input_ids
-        temp[:, -1] = EOS_TOKEN
-        input_ids = temp
-
-    EOS_positions = (input_ids == EOS_TOKEN).nonzero()
-    attn_mask.fill_(-1e9)
-
-    prev_index = 0
-    prev_batch_idx = 0
-    for i in range(len(EOS_positions)):
-        batch_i = EOS_positions[i][0].item()
-        eos_pos = EOS_positions[i][1].item()
-        if batch_i == prev_batch_idx:
-            block_attn(attn_mask, prev_index, eos_pos + 1, prev_batch_idx)
-            prev_index = eos_pos + 1
-        else:
-            prev_batch_idx = batch_i
-            prev_index = 0
-            block_attn(attn_mask, prev_index, eos_pos + 1, batch_i)
-
-    # If no EOS found for a given sequence, unmask entirely
-    for i in range(input_ids.size(0)):
-        if not torch.any(EOS_positions[:, 0] == i):
-            attn_mask[i, :, :] = 0
-
-    return attn_mask
-
-def pad_attn(attn_mask, x):
-    """
-    Masks out padded positions (PAD_TOKEN) in x from attention in attn_mask.
-    """
-    pad_positions = (x == PAD_TOKEN).nonzero()
-    for i in range(len(pad_positions)):
-        b_idx, pad_idx = pad_positions[i][0], pad_positions[i][1]
-        attn_mask[b_idx, pad_idx+1:, :] = -1e9
-        attn_mask[b_idx, :, pad_idx+1:] = -1e9
-    return attn_mask
 
 
 # ---------------------  FINETUNING  ---------------------

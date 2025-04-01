@@ -7,12 +7,7 @@ import torch.nn.functional as F
 import sentencepiece as spm
 from tqdm import tqdm
 from sklearn.metrics import roc_curve, auc
-
-# Adjust sys.path to import custom modules
-sys.path.insert(0, '../training/')
-sys.path.insert(0, '../evals/')
-from loader import EOS_TOKEN, PAD_TOKEN
-from model import OmniBioTA
+from loader import EOS_TOKEN
 
 class TokenizerWrapper:
     """
@@ -38,7 +33,7 @@ class TokenizerWrapper:
 # Global constants and settings
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.bfloat16
-TOKENIZER_FN = "/gpfs/data/oermannlab/users/chens59/OmniBioTA_home/tokenizers/bpe/uniref-2k.model"
+TOKENIZER_FN = "uniref-2k.model"
 DATASET_PATH = "../datasets/peptide-nucleotide-distances.json"
 
 def set_seeds(seed=0):

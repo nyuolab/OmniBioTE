@@ -17,8 +17,7 @@ from scipy.stats import spearmanr
 from transformers import AutoModel
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-BASE_DIR = "/gpfs/home/chens59/OmniBioTA/datasets/TAPE/data"
-#BASE_DIR = "TAPE"
+BASE_DIR = "../datasets/TAPE/data"
 
 import itertools
 from typing import Sequence, List

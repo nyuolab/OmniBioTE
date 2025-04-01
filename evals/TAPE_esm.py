@@ -1,16 +1,10 @@
 import os
-import sys
 import copy
 import json
-import re
-import pickle
-import random
 import argparse
 
 import numpy as np
 import torch
-import sentencepiece as spm
-import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 from scipy.stats import spearmanr
@@ -18,7 +12,7 @@ from scipy.stats import spearmanr
 from transformers import AutoTokenizer, EsmModel
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-BASE_DIR = "/gpfs/home/chens59/OmniBioTA/datasets/TAPE/data"
+BASE_DIR = "../datasets/TAPE/data"
 
 # ---------------------  DATA LOADING  ---------------------
 

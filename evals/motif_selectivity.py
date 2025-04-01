@@ -7,9 +7,6 @@ import numpy as np
 import torch
 import sentencepiece as spm
 from tqdm import tqdm
-
-# Insert path if needed for importing model definition
-sys.path.insert(0, '../training')
 from model import OmniBioTA
 
 ###############################################################################

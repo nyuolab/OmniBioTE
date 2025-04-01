@@ -1,5 +1,4 @@
 import os
-import sys
 import copy
 import fire
 import numpy as np

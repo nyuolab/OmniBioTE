@@ -1,7 +1,6 @@
 import argparse
 import json
 import random
-import sys
 import os
 
 import numpy as np
@@ -146,8 +145,6 @@ def prepare_nucleotide_string(nucleotide_sequences, seq_type):
     This is a minimal stand-in for the "golden" code's approach.
     We just separate the two strands (if any) with [SEP].
     """
-    # You could optionally add <RNA>/<DNA> tokens, etc., if desired.
-    # For now, keep it simple so it matches the old script's style.
     if len(nucleotide_sequences) == 2:
         return f"{nucleotide_sequences[0]}[SEP]{nucleotide_sequences[1]}[SEP]"
     else:
@@ -222,14 +219,9 @@ def evaluate_dG_predictions(
 
             # forward pass
             outputs = model(input_ids=X_wild, token_type_ids=token_type_ids)
-            # If the model returns .hidden_states, might need something like outputs.last_hidden_state or so:
-            # For AutoModel with trust_remote_code in LucaOne, check how the final embedding is returned.
-            # Typically it's outputs.last_hidden_state. If it's different, adjust below:
             if hasattr(outputs, "last_hidden_state"):
                 emb = outputs.last_hidden_state[:, 0]  # [batch, hidden_dim]
             else:
-                # in your old code, it was outputs.hidden_states[:, 0].
-                # If that's how LucaOne returns it, keep that:
                 emb = outputs.hidden_states[:, 0]
 
             # final G0
@@ -261,9 +253,8 @@ def main():
     set_seed(0)
 
     # --------------------------- LOAD TOKENIZERS ---------------------------
-    # For LucaOne, you use the same "gene_prot" Alphabet for both protein & gene:
     nuc_tokenizer = Alphabet.from_predefined("gene_prot")
-    prot_tokenizer = nuc_tokenizer  # If you prefer a separate one, change accordingly
+    prot_tokenizer = nuc_tokenizer
 
     # --------------------------- LOAD MODEL ---------------------------
     # LucaOne from huggingface

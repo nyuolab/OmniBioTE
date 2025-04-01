@@ -10,9 +10,6 @@ import torch
 import sentencepiece as spm
 from tqdm import tqdm
 from scipy.stats import pearsonr
-
-# For loading model definitions, etc.
-sys.path.insert(0, "../training")
 from model import OmniBioTA
 
 # ----------------------------- DEVICE/DTYPE SETUP -----------------------------
@@ -430,7 +427,6 @@ def main():
             pct_start=0.05
         )
 
-        # ----------------- TRAIN (wild-seq G₀) -----------------
         print(f"Fold {fold}: Starting training with {len(nuc_train)} samples, {num_steps} steps.")
         pbar = tqdm(range(num_steps))
         for step in pbar:

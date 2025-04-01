@@ -4,7 +4,6 @@ import os
 import sys
 import numpy as np
 from tqdm import tqdm
-sys.path.insert(0, '../evals/')
 import torch
 import sentencepiece as spm
 import torch.nn.functional as F
