@@ -44,6 +44,8 @@ OmniBioTE is a transformer model designed to capture the complex relationships i
 
 OmniBioTE is built to handle the unique characteristics of biological sequences. The model offers two tokenization strategies— a SentencePiece-based byte-pair-encoding model and a single-character tokenizer.
 
+If you're just interested in loading and querying the model, there is a minimal example notebook, `src/example.ipynb`, to get you started.
+
 ---
 
 ## Features
