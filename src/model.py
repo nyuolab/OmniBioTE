@@ -357,3 +357,24 @@ class OmniBioTA(nn.Module):
                                       eps=epsilon)
         
         return optimizer
+
+class OmniBindER(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.omnibiota = OmniBioTA(config)
+        self.proj_head = nn.Linear(config.n_embd, 1)
+        self.stats = np.asarray([0, 1]) # mean and stdev
+
+    def forward(self, idx):
+        '''
+        Args:
+            idx: a torch.LongTensor of shape (b, t) of token indices
+        Returns:
+            G0: the predicted change in Gibbs free energy for the protein-nucleic acid binding interaction
+        '''
+
+        emb = self.omnibiota(idx, return_embeddings=True)[:, 0]
+        out = self.proj_head(emb) * (1024 / self.config.n_embd) * self.stats[1] + self.stats[0]
+
+        return out
