@@ -40,11 +40,54 @@ OmniBioTE is a transformer model designed to capture the complex relationships i
 
 ---
 
+## Pretrained Models
+
+Pretrained model weights are available for download from Hugging Face:
+
+https://huggingface.co/WeiHua/OmniBioTE/tree/main
+
+---
+
 ## Introduction
 
 OmniBioTE is built to handle the unique characteristics of biological sequences. The model offers two tokenization strategies— a SentencePiece-based byte-pair-encoding model and a single-character tokenizer.
 
 If you're just interested in loading and querying the model, there is a minimal example notebook, `src/example.ipynb`, to get you started.
+
+### Predicting ΔG for Protein–Nucleic Acid Binding
+
+To predict the change in Gibbs free energy (ΔG) between a protein and nucleic acid sequence using the `omnibinder-XL` model:
+
+```python
+import sys
+sys.path.insert(0, "src")
+
+import torch
+from OmniTokenizer import OmniTokenizer
+
+# Load model and tokenizer
+tokenizer = OmniTokenizer(tokenizer_dir="tokenizers", single_char=False)
+model = torch.load("omnibinder-XL.pt", map_location="cpu", weights_only=False).bfloat16().eval()
+
+# Protein sequence (p53, Homo sapiens)
+prot_seq = "<protein>MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGPDEAPRMPEAAPPVAPAPAAPTPAAPAPAPSWPLSSSVPSQKTYQGSYGFRLGFLHSGTAKSVTCTYSPALNKMFCQLAKTCPVQLWVDSTPPPGTRVRAMAIYKQSQHMTEVVRRCPHHERCSDSDGLAPPQHLIRVEGNLRVEYLDDRNTFRHSVVVPYEPPEVGSDCTTIHYNYMCNSSCMGGMNRRPILTIITLEDSSGNLLGRNSFEVRVCACPGRDRRTEEENLRKKGEPHHELPPGSTKRALPNNTSSSPQPKKKPLDGEYFTLQIRGRERFEMFRELNEALELKDAQAGKEPGGSRAHSSHLKSKKGQSTSRHKKLMFKTEGPDSD<EOS>"
+
+# Double-stranded DNA motif (append the other strand 5'->3' after the first)
+nuc_seq = "<DNA>GGGCATGCCCGGGCATGCCC<EOS>GGGCATGCCCGGGCATGCCC<EOS>"
+
+with torch.no_grad():
+    tokens = tokenizer.Encode(prot_seq, seq_type="prot") + tokenizer.Encode(nuc_seq, seq_type="nuc")
+    input_tensor = torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
+    delta_g = model(input_tensor).item()
+
+print(f"Predicted ΔG: {delta_g:.2f} kcal/mol")  # ground truth: -10.20
+```
+
+Notes:
+- Protein sequences must be wrapped with `<protein>` and `<EOS>` tags.
+- For double-stranded DNA, include both strands in the 5'→3' direction, each terminated with `<EOS>`.
+- For RNA sequences, use the `<RNA>` header and convert U to T.
+- Valid nucleic acid headers include `<DNA>`, `<RNA>`, `<mRNA>`, `<rRNA>`, `<tRNA>`, and others (see `src/example.ipynb` for the full list).
 
 ---
 
